@@ -89,8 +89,8 @@ impl Grammar2D {
             let mut it = lhs[10..].split(' ');
             if let (Some(a), Some(b)) = (it.next(), it.next()) {
                     (
-                        a.parse::<i32>().expect("err"),
-                        b.parse::<i32>().expect("err")
+                        a.parse::<i32>().or::<i32>(Ok(0)).unwrap(),
+                        b.parse::<i32>().or::<i32>(Ok(1)).unwrap(),
                     )
             } else {
                 default
@@ -130,6 +130,7 @@ impl Grammar2D {
     }
 
     pub fn load(&mut self, filename: &str) {
+        println!("{}",filename);
         let mut lhs: Vec<&str> = vec![];
         let mut rhs: Vec<&str> = vec![];
         let mut help = "".to_string();
