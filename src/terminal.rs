@@ -12,10 +12,11 @@ pub struct Terminal {
 }
 
 //const FONT_PATH: &str = "fonts/DejaVuSansMono-Bold.ttf";
-const FONT_PATH: &str = "fonts/FreeMonoBold.otf";
+//const FONT_PATH: &str = "fonts/FreeMonoBold.otf";
+const FONT_PATH: &str = "fonts/iosevka-term-regular.ttf";
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum TerminalState {
+pub enum TerminalState {
     New,
     Resized,
     Ready,
@@ -41,6 +42,10 @@ impl TerminalEvent {
         Self { row, col, s: c.to_string(), attr: (Color::WHITE, Color::BLACK) }
     }
 }
+
+pub struct TerminalReady;
+pub struct TerminalNew;
+
 pub struct TerminalOperation(pub Vec<TerminalEvent>);
 
 #[derive(Component)]
@@ -69,6 +74,8 @@ fn scale_terminal_system(
     text: Query<&CalculatedSize, With<Foreground>>,
     mut state: ResMut<State<TerminalState>>,
     windows: Res<Windows>,
+    mut is_new: EventWriter<TerminalNew>,
+    mut is_ready: EventWriter<TerminalReady>,
 ) {
     let mut new_state = state.current().clone();
     let font_scale: (f32, f32) = match state.current() {
@@ -77,6 +84,7 @@ fn scale_terminal_system(
             (1.0, 1.0)
         }
         TerminalState::Resized => {
+            is_new.send(TerminalNew);
             let size = text.single();
             let terminal = terminal.single_mut().1;
             if size.size.width > 0.0 && size.size.height > 0.0 {
@@ -104,18 +112,26 @@ fn scale_terminal_system(
         if let Some(old_terminal) = terminal.iter_mut().next() {
             commands.entity(old_terminal.0).despawn();
         }
-        let back = resized_terminal.create_layer(width, height, &asset_server);
-        let fore = resized_terminal.create_layer(width, height, &asset_server);
-        commands.spawn_bundle(back).insert(Background);
-        commands.spawn_bundle(fore).insert(Foreground);
-        commands.spawn().insert(resized_terminal);
-        state.set(new_state).unwrap();
+        {
+            let back = resized_terminal.create_layer(width, height, &asset_server);
+            let fore = resized_terminal.create_layer(width, height, &asset_server);
+            commands.spawn_bundle(back).insert(Background);
+            commands.spawn_bundle(fore).insert(Foreground);
+            commands.spawn().insert(resized_terminal);
+            state.set(new_state).unwrap();
+        }
+    } else if state.current() == &TerminalState::Ready{
+        is_ready.send(TerminalReady);
     }
-
 }
 
 pub struct TerminalPlugin;
 
+impl TerminalPlugin {
+    pub(crate) fn new() -> Self {
+        TerminalPlugin{ }
+    }
+}
 impl Plugin for TerminalPlugin {
     fn build(&self, app: &mut App) {
         app
@@ -123,6 +139,8 @@ impl Plugin for TerminalPlugin {
             .add_startup_system(setup)
             .add_state(TerminalState::New)
             .add_event::<TerminalEvent>()
+            .add_event::<TerminalReady>()
+            .add_event::<TerminalNew>()
             .add_system(window_resized_system)
             .add_system(scale_terminal_system)
             .add_system_set(SystemSet::on_update(TerminalState::Ready)
@@ -151,7 +169,7 @@ impl Terminal {
         fun(self, fore, back);
     }
     pub fn new(width: f32, height: f32, font_path: String, font_scale: (f32, f32)) -> Self {
-        const Y: usize = 25;
+        const Y: usize = 35;
         const X: usize = 80;
 
         let _y = height / Y as f32;
