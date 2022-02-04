@@ -3,6 +3,7 @@ pub mod grammar;
 pub mod derivation;
 mod input;
 
+use std::collections::HashMap;
 use std::default::Default;
 use bevy::core::FixedTimestep;
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
@@ -19,13 +20,15 @@ extern crate rand;
 
 const FAST_STEP: f64 = 0.001;
 const SLOW_STEP: f64 = 0.25;
-const PROGRAM_FILE: &str = "programs/snake.cfg";
+const PROGRAM_FILE: &str = "programs/highnoon.cfg";
 
 #[derive(Clone, Eq, Debug, Hash, PartialEq, Copy)]
 enum AppState {
     Paused,
     Running,
 }
+
+struct KeyRepeatTiming(HashMap<KeyCode, f64>);
 
 struct ProgramFile(String);
 
@@ -42,6 +45,7 @@ fn main() {
         .add_plugin(TerminalPlugin::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(ProgramFile(program_file.clone()))
+        .insert_resource(KeyRepeatTiming(Default::default()))
         .add_state(AppState::Paused)
         .add_system(display_fps_system)
         .add_system(clear_grammar_system)
@@ -53,6 +57,10 @@ fn main() {
         .add_system_set(SystemSet::new()
                             .with_run_criteria(FixedTimestep::step(slow_step))
                             .with_system(grammar_derivation_system_b)
+        )
+        .add_system_set(SystemSet::new()
+            .with_run_criteria(FixedTimestep::step(0.1*slow_step))
+            .with_system(grammar_derivation_system_m)
         )
         .add_system(bevy::input::system::exit_on_esc_system)
         .run();
@@ -138,10 +146,19 @@ fn _random_text_system(time: Res<Time>, terminal: Query<&Terminal>, mut events: 
 }
 
 fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>,
+                             time: Res<Time>,
                              mut state: ResMut<State<AppState>>,
+                             mut key_repeat_times: ResMut<KeyRepeatTiming>,
                              mut keyboard_input: ResMut<Input<KeyCode>>,
                              mut derivation: Query<&mut Derivation>, mut events: EventWriter<TerminalEvent>) {
     let new_state = if state.current() == &AppState::Paused {AppState::Running} else {AppState::Paused};
+
+    let current_time = time.seconds_since_startup();
+    keyboard_input
+        .get_just_pressed().for_each(|&x| {
+            key_repeat_times.0.insert(x.clone(), current_time);
+    });
+
     if let Some(terminal) = terminal.iter().next() {
         if let Some(derive) = derivation.iter_mut().next().as_mut() {
             let mut score = 0;
@@ -150,20 +167,27 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
             let mut cleared = Vec::<KeyCode>::default();
             let time_step = vec![time_step_code];
             let time_lapse = if state.current() == &AppState::Running { time_step } else {vec![]};
+
             let iter = keyboard_input
                 .get_just_pressed().filter(|&x| {
                     (x == &KeyCode::Space) || (time_step_code == KeyCode::T)
                 })
+                .chain(keyboard_input.get_pressed().filter(|&x| {
+                    time_step_code == KeyCode::M
+                        && ((current_time - key_repeat_times.0.get(x)
+                        .unwrap_or(&current_time)) > 0.25)
+                }))
                 .chain(time_lapse.iter());
             for key_code in iter {
                 let shift_down = (key_code == &KeyCode::T)
+                    || (key_code == &KeyCode::M)
                     || (key_code == &KeyCode::B)
                     || keyboard_input.pressed(KeyCode::LShift)
                     || keyboard_input.pressed(KeyCode::RShift);
                 if let Some(c) = KeyCodeExt(key_code.clone()).to_qwerty_char(shift_down) {
                     if c == ' ' {
                         if state.current() != &new_state {
-                            state.set(new_state).unwrap();
+                            state.set(new_state).unwrap_or_default();
                         }
                     }
                     let result = derive.step(c, &mut score, &mut dbg_rule, &mut errs);
@@ -193,15 +217,28 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
 }
 
 fn grammar_derivation_system_t(terminal: Query<&Terminal>,
+                               time: Res<Time>,
                                state: ResMut<State<AppState>>,
+                               key_repeat_times: ResMut<KeyRepeatTiming>,
                                keyboard_input: ResMut<Input<KeyCode>>,
                                derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>) {
-    grammar_derivation_system(KeyCode::T, terminal, state, keyboard_input, derivation, events);
+    grammar_derivation_system(KeyCode::T, terminal, time, state, key_repeat_times, keyboard_input, derivation, events);
 }
 
 fn grammar_derivation_system_b(terminal: Query<&Terminal>,
+                               time: Res<Time>,
                                state: ResMut<State<AppState>>,
+                               key_repeat_times: ResMut<KeyRepeatTiming>,
                                keyboard_input: ResMut<Input<KeyCode>>,
                                derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>) {
-    grammar_derivation_system(KeyCode::B, terminal, state, keyboard_input, derivation, events);
+    grammar_derivation_system(KeyCode::B, terminal, time, state, key_repeat_times, keyboard_input, derivation, events);
+}
+
+fn grammar_derivation_system_m(terminal: Query<&Terminal>,
+                               time: Res<Time>,
+                               state: ResMut<State<AppState>>,
+                               key_repeat_times: ResMut<KeyRepeatTiming>,
+                               keyboard_input: ResMut<Input<KeyCode>>,
+                               derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>) {
+    grammar_derivation_system(KeyCode::M, terminal, time, state, key_repeat_times, keyboard_input, derivation, events);
 }

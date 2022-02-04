@@ -50,7 +50,7 @@ impl Derivation {
 
     //TODO refactor bevy deps out of Derivation
     fn get_color(&self, fore: u8, back: u8) -> (Color, Color) {
-        (self.colours[fore as usize], self.colours[back as usize])
+        (self.colours[fore.try_into().unwrap_or(7)], self.colours[back.try_into().unwrap_or(0)])
     }
     pub fn start(&mut self) -> Vec<TerminalEvent> {
         let colour = self.get_color(7, 0);

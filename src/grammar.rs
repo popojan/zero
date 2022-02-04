@@ -118,8 +118,10 @@ impl Grammar2D {
         let rule = Rule {
             lhs: s, lhs_all, rhs_all,
             ro, co, rm, cm, rq, cq,
-            fore: (Self::at_with_default(lhs, 4, '7') as u8 - '0' as u8),
-            back: (Self::at_with_default(lhs, 5, '8') as u8 - '0' as u8),
+            fore: Self::at_with_default(lhs, 4, '7')
+                .to_digit(10).unwrap_or(7).try_into().unwrap_or(7),
+            back: Self::at_with_default(lhs, 5, '8')
+                .to_digit(10).unwrap_or(0).try_into().unwrap_or(0),
             reward, key, ctx,
             rep,
             ctx_rep,
@@ -137,7 +139,7 @@ impl Grammar2D {
         let g = fs::read_to_string(filename)
             .expect("Cannot read grammar file.");
 
-        g.split("\n")
+        g.split("\r\n")
             .for_each(
                 |line| {
                     if let Some(fc) = line.chars().next() {
