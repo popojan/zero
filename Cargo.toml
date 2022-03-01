@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = {version = "0.6.0", features = ["subpixel_glyph_atlas"]}
+bevy = { version = "0.6.0", features = [
+        "subpixel_glyph_atlas", "bevy_render", "bevy_ui",
+        "bevy_core_pipeline",
+        "bevy_winit", "x11",
+        "bevy_text", "bevy_sprite"
+    ], default-features = false}
+
 rand = "0.8.4"
 
 [profile.dev]

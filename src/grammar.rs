@@ -28,7 +28,8 @@ pub struct Grammar2D {
 }
 
 use std::collections::HashMap;
-use std::fs;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use bevy::utils::HashSet;
 
 pub struct Start {
@@ -47,9 +48,9 @@ impl Grammar2D {
         }
     }
 
-    fn _process(&mut self, lhss: &Vec<&str>, rule: &Vec<&str>) -> bool {
+    fn _process(&mut self, lhss: &Vec<String>, rule: &Vec<String>) -> bool {
         let rhs = rule.join("\n");
-        lhss.iter().for_each(|&lhs| self.add_rule(&lhs, &rhs));
+        lhss.iter().for_each(|lhs| self.add_rule(&lhs, &rhs));
         true
     }
 
@@ -133,18 +134,19 @@ impl Grammar2D {
 
     pub fn load(&mut self, filename: &str) {
         println!("{}",filename);
-        let mut lhs: Vec<&str> = vec![];
-        let mut rhs: Vec<&str> = vec![];
+        let mut lhs: Vec<String> = vec![];
+        let mut rhs: Vec<String> = vec![];
         let mut help = "".to_string();
-        let g = fs::read_to_string(filename)
-            .expect("Cannot read grammar file.");
+        let f = File::open(filename).expect("Cannot read grammar file.");
+        let g = BufReader::new(f);
 
-        g.split("\r\n")
+        g.lines()
             .for_each(
-                |line| {
+                |a_line| {
+                    let line = a_line.unwrap().clone();
                     if let Some(fc) = line.chars().next() {
                         if fc == '#' { //comment
-                            if Self::at_with_default(line, 1, ' ') == '!' {
+                            if Self::at_with_default(&line, 1, ' ') == '!' {
                                 help = String::from_iter(line.chars().skip(2));
                             }
                         } else if fc == '^' {
@@ -157,12 +159,12 @@ impl Grammar2D {
                                 lhs.clear();
                                 rhs.clear();
                             }
-                            lhs.push(&line);
+                            lhs.push(line);
                         } else {
-                            rhs.push(&line);
+                            rhs.push(line);
                         }
                     } else {
-                        rhs.push(&line);
+                        rhs.push(line);
                     }
                 }
             );
