@@ -3,14 +3,24 @@ name = "nerez"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-bevy = { version = "0.6.0", features = [
-        "subpixel_glyph_atlas", "bevy_render", "bevy_ui",
-        "bevy_core_pipeline",
-        "bevy_winit", "x11",
-        "bevy_text", "bevy_sprite"
-    ], default-features = false}
+[dependencies.bevy]
+version = "0.6.0"
+default-features = false
+features = [
+    "subpixel_glyph_atlas", "bevy_render", "bevy_ui",
+    "bevy_core_pipeline",
+    "bevy_winit", "x11",
+    "bevy_text", "bevy_sprite", "wav"
+]
 
+[dependencies.bevy_kira_audio]
+version = "0.8.0"
+default-features = false
+features = [
+    "wav"
+]
+
+[dependencies]
 rand = "0.8.4"
 
 [profile.dev]

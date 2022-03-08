@@ -15,6 +15,8 @@ use crate::grammar::Grammar2D;
 use crate::input::KeyCodeExt;
 use crate::terminal::{Terminal, TerminalNew, TerminalReady};
 use std::env;
+use bevy_kira_audio::{Audio, AudioChannel, AudioPlugin, AudioSource};
+use bevy::asset::LoadState;
 
 extern crate rand;
 
@@ -26,6 +28,25 @@ const PROGRAM_FILE: &str = "programs/highnoon.cfg";
 enum AppState {
     Paused,
     Running,
+}
+
+struct AudioState {
+    audio_loaded: bool,
+    sound_handle: Handle<AudioSource>,
+    channels: HashMap<AudioChannel, ChannelAudioState>,
+}
+struct ChannelAudioState {
+    stopped: bool,
+    paused: bool,
+}
+
+impl Default for ChannelAudioState {
+    fn default() -> Self {
+        ChannelAudioState {
+            stopped: true,
+            paused: false,
+        }
+    }
 }
 
 struct KeyRepeatTiming(HashMap<KeyCode, f64>);
@@ -44,12 +65,15 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(TerminalPlugin::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(AudioPlugin)
         .insert_resource(ProgramFile(program_file.clone()))
         .insert_resource(KeyRepeatTiming(Default::default()))
+        .add_startup_system(prepare_audio.system())
         .add_state(AppState::Paused)
         .add_system(display_fps_system)
         .add_system(clear_grammar_system)
         .add_system(start_grammar_system)
+        .add_system(check_audio_loading.system())
         .add_system_set(SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(fast_step))
                 .with_system(grammar_derivation_system_t)
@@ -64,6 +88,35 @@ fn main() {
         )
         .add_system(bevy::input::system::exit_on_esc_system)
         .run();
+}
+
+fn check_audio_loading(mut audio_state: ResMut<AudioState>, asset_server: ResMut<AssetServer>) {
+    if audio_state.audio_loaded
+        || LoadState::Loaded != asset_server.get_load_state(&audio_state.sound_handle)
+    {
+        return;
+    }
+    audio_state.audio_loaded = true;
+}
+
+fn prepare_audio(mut commands: Commands, asset_server: ResMut<AssetServer>) {
+    let mut channels = HashMap::new();
+    channels.insert(
+        AudioChannel::new("first".to_owned()),
+        ChannelAudioState::default(),
+    );
+    channels.insert(
+        AudioChannel::new("second".to_owned()),
+        ChannelAudioState::default(),
+    );
+    let sound_handle = asset_server.load("sounds/beep.wav");
+    let audio_state = AudioState {
+        channels,
+        audio_loaded: false,
+        sound_handle,
+    };
+
+    commands.insert_resource(audio_state);
 }
 
 fn clear_grammar_system(mut commands: Commands,
@@ -147,6 +200,8 @@ fn _random_text_system(time: Res<Time>, terminal: Query<&Terminal>, mut events: 
 
 fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>,
                              time: Res<Time>,
+                             audio: Res<Audio>,
+                             mut audio_state: ResMut<AudioState>,
                              mut state: ResMut<State<AppState>>,
                              mut key_repeat_times: ResMut<KeyRepeatTiming>,
                              mut keyboard_input: ResMut<Input<KeyCode>>,
@@ -205,6 +260,14 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
                     }
                     if time_step_code == KeyCode::T {
                         cleared.push(key_code.clone());
+                    } else if time_step_code == KeyCode::B {
+                        if audio_state.audio_loaded {
+                            let audio_channel = &audio_state.channels.iter().next().unwrap().0.clone();
+                            let channel_audio_state = audio_state.channels.get_mut(audio_channel).unwrap();
+                            channel_audio_state.paused = false;
+                            channel_audio_state.stopped = false;
+                            audio.play_in_channel(audio_state.sound_handle.clone(), &audio_channel);
+                        }
                     }
                 }
             }
@@ -218,27 +281,33 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
 
 fn grammar_derivation_system_t(terminal: Query<&Terminal>,
                                time: Res<Time>,
+                               audio: Res<Audio>,
+                               audio_state: ResMut<AudioState>,
                                state: ResMut<State<AppState>>,
                                key_repeat_times: ResMut<KeyRepeatTiming>,
                                keyboard_input: ResMut<Input<KeyCode>>,
                                derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>) {
-    grammar_derivation_system(KeyCode::T, terminal, time, state, key_repeat_times, keyboard_input, derivation, events);
+    grammar_derivation_system(KeyCode::T, terminal, time,  audio, audio_state, state, key_repeat_times, keyboard_input, derivation, events);
 }
 
 fn grammar_derivation_system_b(terminal: Query<&Terminal>,
                                time: Res<Time>,
+                               audio: Res<Audio>,
+                               audio_state: ResMut<AudioState>,
                                state: ResMut<State<AppState>>,
                                key_repeat_times: ResMut<KeyRepeatTiming>,
                                keyboard_input: ResMut<Input<KeyCode>>,
                                derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>) {
-    grammar_derivation_system(KeyCode::B, terminal, time, state, key_repeat_times, keyboard_input, derivation, events);
+    grammar_derivation_system(KeyCode::B, terminal, time,  audio, audio_state, state, key_repeat_times, keyboard_input, derivation, events);
 }
 
 fn grammar_derivation_system_m(terminal: Query<&Terminal>,
                                time: Res<Time>,
+                               audio: Res<Audio>,
+                               audio_state: ResMut<AudioState>,
                                state: ResMut<State<AppState>>,
                                key_repeat_times: ResMut<KeyRepeatTiming>,
                                keyboard_input: ResMut<Input<KeyCode>>,
                                derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>) {
-    grammar_derivation_system(KeyCode::M, terminal, time, state, key_repeat_times, keyboard_input, derivation, events);
+    grammar_derivation_system(KeyCode::M, terminal, time, audio, audio_state, state, key_repeat_times, keyboard_input, derivation, events);
 }
