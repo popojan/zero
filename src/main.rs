@@ -30,9 +30,10 @@ enum AppState {
     Running,
 }
 
-struct AudioState {
-    audio_loaded: bool,
-    sound_handle: Handle<AudioSource>,
+pub struct AudioState {
+    pub audio_loaded: bool,
+    pub audio_destroy: bool,
+    sound_handles: HashMap<char, Handle<AudioSource>>,
     channels: HashMap<AudioChannel, ChannelAudioState>,
 }
 struct ChannelAudioState {
@@ -91,15 +92,25 @@ fn main() {
 }
 
 fn check_audio_loading(mut audio_state: ResMut<AudioState>, asset_server: ResMut<AssetServer>) {
-    if audio_state.audio_loaded
-        || LoadState::Loaded != asset_server.get_load_state(&audio_state.sound_handle)
+    if audio_state.audio_loaded || audio_state.audio_destroy
     {
+        return;
+    }
+    let mut loading = false;
+    for (_sound_alias, sound_handle) in audio_state.sound_handles.iter() {
+        loading |= LoadState::Loaded != asset_server.get_load_state(sound_handle);
+    }
+    if loading {
         return;
     }
     audio_state.audio_loaded = true;
 }
 
-fn prepare_audio(mut commands: Commands, asset_server: ResMut<AssetServer>) {
+fn prepare_audio(mut commands: Commands, program_file: Res<ProgramFile>, asset_server: ResMut<AssetServer>) {
+
+    let mut grammar = Grammar2D::default();
+    grammar.load(&program_file.0);
+
     let mut channels = HashMap::new();
     channels.insert(
         AudioChannel::new("first".to_owned()),
@@ -109,11 +120,16 @@ fn prepare_audio(mut commands: Commands, asset_server: ResMut<AssetServer>) {
         AudioChannel::new("second".to_owned()),
         ChannelAudioState::default(),
     );
-    let sound_handle = asset_server.load("sounds/beep.wav");
+    let mut sound_handles =  HashMap::<char, Handle<AudioSource>>::new();
+    for (sound_alias, sound_file) in grammar.sounds.iter() {
+        let sound_handle = asset_server.load(sound_file);
+        sound_handles.insert(*sound_alias, sound_handle);
+    }
     let audio_state = AudioState {
         channels,
         audio_loaded: false,
-        sound_handle,
+        audio_destroy: false,
+        sound_handles,
     };
 
     commands.insert_resource(audio_state);
@@ -216,9 +232,9 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
 
     if let Some(terminal) = terminal.iter().next() {
         if let Some(derive) = derivation.iter_mut().next().as_mut() {
-            let mut score = 0;
-            let mut errs = 0;
-            let mut dbg_rule = String::from("");
+            let mut _score = 0;
+            let mut _errs = 0;
+            let mut _dbg_rule = String::from("");
             let mut cleared = Vec::<KeyCode>::default();
             let time_step = vec![time_step_code];
             let time_lapse = if state.current() == &AppState::Running { time_step } else {vec![]};
@@ -245,12 +261,12 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
                             state.set(new_state).unwrap_or_default();
                         }
                     }
-                    let result = derive.step(c, &mut score, &mut dbg_rule, &mut errs);
-                    for e in result {
+                    let result = derive.step(c);
+                    for e in result.terminal_events {
                         //for e in step.iter() {
                         events.send(e);
                         use std::ops::Add;
-                        let msg = "          ".to_string().add(&dbg_rule);
+                        let msg = "          ".to_string().add(&result.dbg_rule);
                         events.send(TerminalEvent {
                             row: 0,
                             col: terminal.cols - msg.chars().count() - 1,
@@ -258,16 +274,18 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
                             attr: (Color::WHITE, Color::BLACK)
                         });
                     }
-                    if time_step_code == KeyCode::T {
-                        cleared.push(key_code.clone());
-                    } else if time_step_code == KeyCode::B {
-                        if audio_state.audio_loaded {
+                    if let Some(sound_handle_ref) = audio_state.sound_handles.get(&result.sound_alias) {
+                        if  audio_state.audio_loaded {
+                            let sound_handle = sound_handle_ref.clone();
                             let audio_channel = &audio_state.channels.iter().next().unwrap().0.clone();
                             let channel_audio_state = audio_state.channels.get_mut(audio_channel).unwrap();
                             channel_audio_state.paused = false;
                             channel_audio_state.stopped = false;
-                            audio.play_in_channel(audio_state.sound_handle.clone(), &audio_channel);
+                            audio.play_in_channel(sound_handle, &audio_channel);
                         }
+                    }
+                    if time_step_code == KeyCode::T {
+                        cleared.push(key_code.clone());
                     }
                 }
             }

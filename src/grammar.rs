@@ -16,8 +16,9 @@ pub struct Rule {
     pub ctx: char,
     pub rep: char,
     pub ctx_rep: char,
-    pub  weight: i32,
-    pub  z_ord: u8,
+    pub weight: i32,
+    pub z_ord: u8,
+    pub sound: char,
 }
 
 #[derive(Default)]
@@ -25,6 +26,8 @@ pub struct Grammar2D {
     pub seeds: Vec<Start>,
     pub rules: HashMap<char, Vec<Rule>>,
     pub nonterminals: HashSet<char>,
+    pub help: String,
+    pub sounds: HashMap<char, String>,
 }
 
 use std::collections::HashMap;
@@ -73,8 +76,10 @@ impl Grammar2D {
         (-1, -1)
     }
 
-    fn add_rule(&mut self, lhs: &str, rhs: &str) {
-        let s = lhs.chars().nth(1).unwrap();
+    fn add_rule(&mut self, lhs0: &str, rhs: &str) {
+        let s = lhs0.chars().nth(2).unwrap();
+        let sound = lhs0.chars().nth(1).unwrap();
+        let lhs = &lhs0[1..(lhs0.chars().count())];
         if !self.rules.contains_key(&s) {
             self.rules.insert(s, vec![]);
             self.nonterminals.insert(s);
@@ -128,15 +133,16 @@ impl Grammar2D {
             ctx_rep,
             weight,
             z_ord: Self::at_with_default(lhs, 8, 'a')  as u8,
+            sound,
         };
         self.rules.get_mut(&s).unwrap().push(rule);
     }
 
     pub fn load(&mut self, filename: &str) {
-        println!("{}",filename);
+        //println!("{}",filename);
         let mut lhs: Vec<String> = vec![];
         let mut rhs: Vec<String> = vec![];
-        let mut help = "".to_string();
+        self.help = "".to_string();
         let f = File::open(filename).expect("Cannot read grammar file.");
         let g = BufReader::new(f);
 
@@ -146,8 +152,13 @@ impl Grammar2D {
                     let line = a_line.unwrap().clone();
                     if let Some(fc) = line.chars().next() {
                         if fc == '#' { //comment
-                            if Self::at_with_default(&line, 1, ' ') == '!' {
-                                help = String::from_iter(line.chars().skip(2));
+                            let second_char = Self::at_with_default(&line, 1, ' ');
+                            if second_char == '!' {
+                                self.help = String::from_iter(line.chars().skip(2));
+                            } else if second_char == '=' {
+                                let alias = Self::at_with_default(&line, 2, '=');
+                                let sound_file = String::from_iter(line.chars().skip(3));
+                                self.sounds.insert(alias, sound_file);
                             }
                         } else if fc == '^' {
                             let c = Self::at_with_default(&line, 1, 's');

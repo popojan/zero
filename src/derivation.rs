@@ -26,6 +26,24 @@ pub struct Derivation {
     colours: Vec<Color>,
 }
 
+pub struct DerivationResult {
+    pub terminal_events: Vec<TerminalEvent>,
+    pub score_delta: i32,
+    pub errs_delta: i32,
+    pub dbg_rule: String,
+    pub sound_alias: char,
+}
+impl Default for DerivationResult {
+    fn default() -> Self {
+        DerivationResult {
+            terminal_events: Default::default(),
+            score_delta: 0,
+            errs_delta: 0,
+            dbg_rule: "".to_string(),
+            sound_alias: ' ',
+        }
+    }
+}
 impl Derivation {
     pub fn new(grammar: Grammar2D, rows: usize, cols: usize) -> Self {
         Derivation {
@@ -225,7 +243,7 @@ impl Derivation {
         return ret;
     }
 
-    pub fn step(&mut self, key: char, score: &mut i32, dbg_rule: &mut String, _errs: &mut i32) -> Vec<TerminalEvent> {
+    pub fn step(&mut self, key: char) -> DerivationResult {
         // choose random nonterminal instance and apply a single random rule
         const MAGIC: char = '?';
 
@@ -288,10 +306,15 @@ impl Derivation {
         }
         if let Some(((row, col), idx)) = rule_chosen {
             let rule = applicable_rules[idx].1.clone();
-            *dbg_rule = rule.lhs_all.clone();
-            *score += rule.reward;
-            return self.apply_rule(*row as i32 - rule.rq, *col as i32 - rule.cq, &rule);
+            DerivationResult {
+                terminal_events: self.apply_rule(*row as i32 - rule.rq, *col as i32 - rule.cq, &rule),
+                score_delta: rule.reward,
+                errs_delta: 0,
+                dbg_rule: rule.lhs_all.clone(),
+                sound_alias: rule.sound,
+            }
+        } else {
+            Default::default()
         }
-        Default::default()
     }
 }
