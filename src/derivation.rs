@@ -84,7 +84,7 @@ impl Derivation {
                     'u' => 1,
                     'l' => (self.rows - 1) as usize,
                     'c' => (self.rows / 2) as usize,
-                    _ => rand::random::<usize>() % (((self.rows - 1) + 1 ) as usize), //TODO proč
+                    _ => rand::random::<usize>() % ((self.rows - 1) as usize)  + 1,
                 };
                 self.x.insert((row, col), seed.c);
 

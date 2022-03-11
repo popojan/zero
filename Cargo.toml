@@ -9,7 +9,7 @@ default-features = false
 features = [
     "subpixel_glyph_atlas", "bevy_render", "bevy_ui",
     "bevy_core_pipeline",
-    "x11",
+    "wayland",
     "bevy_text", "bevy_sprite", "wav"
 ]
 
