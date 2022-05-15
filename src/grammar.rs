@@ -93,14 +93,17 @@ impl Grammar2D {
         let default = (0, 1);
         let (reward, weight) = if lhs.chars().count() > 10 {
             let mut it = lhs[10..].split(' ');
-            if let (Some(a), Some(b)) = (it.next(), it.next()) {
-                    (
-                        a.parse::<i32>().or::<i32>(Ok(0)).unwrap(),
-                        b.parse::<i32>().or::<i32>(Ok(1)).unwrap(),
-                    )
+            let some_reward = if let Some(a) = it.next() {
+                a.parse::<i32>().or::<i32>(Ok(0)).unwrap()
             } else {
-                default
-            }
+                default.0
+            };
+            let some_weight = if let Some(b) = it.next() {
+                b.parse::<i32>().or::<i32>(Ok(1)).unwrap()
+            } else {
+                default.1
+            };
+            (some_reward, some_weight)
         } else {
             default
         };

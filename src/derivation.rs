@@ -18,7 +18,7 @@ struct G {
 
 #[derive(Component)]
 pub struct Derivation {
-    grammar: Grammar2D,
+    pub grammar: Grammar2D,
     rows: i32, cols: i32,
     current: Vec<Vec<G>>,
     memory: Vec<Vec<G>>,
@@ -29,7 +29,7 @@ pub struct Derivation {
 pub struct DerivationResult {
     pub terminal_events: Vec<TerminalEvent>,
     pub score_delta: i32,
-    pub errs_delta: i32,
+    pub errors_delta: i32,
     pub dbg_rule: String,
     pub sound_alias: char,
 }
@@ -38,7 +38,7 @@ impl Default for DerivationResult {
         DerivationResult {
             terminal_events: Default::default(),
             score_delta: 0,
-            errs_delta: 0,
+            errors_delta: 0,
             dbg_rule: "".to_string(),
             sound_alias: ' ',
         }
@@ -309,7 +309,7 @@ impl Derivation {
             DerivationResult {
                 terminal_events: self.apply_rule(*row as i32 - rule.rq, *col as i32 - rule.cq, &rule),
                 score_delta: rule.reward,
-                errs_delta: 0,
+                errors_delta: 0,
                 dbg_rule: rule.lhs_all.clone(),
                 sound_alias: rule.sound,
             }

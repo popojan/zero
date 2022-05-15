@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::WindowResized;
+use crate::{MIN_CHAR_HEIGHT, MIN_CHAR_WIDTH};
 
 #[derive(Component)]
 pub struct Terminal {
@@ -107,6 +108,7 @@ fn scale_terminal_system(
         let height = window.height();
 
         let resized_terminal = Terminal::new(
+            MIN_CHAR_WIDTH, MIN_CHAR_HEIGHT,
             width, height, FONT_PATH.to_string(), font_scale
         );
         if let Some(old_terminal) = terminal.iter_mut().next() {
@@ -168,12 +170,10 @@ impl Terminal {
                    fore: &mut Text, back: &mut Text) {
         fun(self, fore, back);
     }
-    pub fn new(width: f32, height: f32, font_path: String, font_scale: (f32, f32)) -> Self {
-        const Y: usize = 35;
-        const X: usize = 80;
+    pub fn new(min_w: u16, min_h: u16, width: f32, height: f32, font_path: String, font_scale: (f32, f32)) -> Self {
 
-        let _y = height / Y as f32;
-        let _x = width / X as f32;
+        let _y = height / min_h as f32;
+        let _x = width / min_w as f32;
         let font_size = if _x >= _y { _x / font_scale.0 } else { _y / font_scale.1 };
         let rows = std::cmp::max(1, (height / font_size / font_scale.1).floor() as usize);
         let cols = std::cmp::max(1, (width / font_size / font_scale.0).floor() as usize);

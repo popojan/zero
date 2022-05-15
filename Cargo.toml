@@ -1,10 +1,10 @@
 [package]
 name = "nerez"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies.bevy]
-version = "0.6.0"
+version = "0.7.0"
 default-features = false
 features = [
     "subpixel_glyph_atlas", "bevy_render", "bevy_ui",
@@ -14,14 +14,14 @@ features = [
 ]
 
 [dependencies.bevy_kira_audio]
-version = "0.8.0"
+version = "0.9.0"
 default-features = false
 features = [
     "wav"
 ]
 
 [dependencies]
-rand = "0.8.4"
+rand = "0.8.5"
 
 [profile.dev]
 opt-level = 0
