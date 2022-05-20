@@ -24,7 +24,7 @@ const FAST_STEP: f64 = 0.002;
 const SLOW_STEP: f64 = 0.25;
 const MIN_CHAR_WIDTH: u16 = 80;
 const MIN_CHAR_HEIGHT: u16 = 35;
-const NUM_DERIVATIONS_PER_TICK: u8 = 4;
+const NUM_DERIVATIONS_PER_TICK: u8 = 1;
 const PROGRAM_FILE: &str = "programs/highnoon.cfg";
 
 #[derive(Clone, Eq, Debug, Hash, PartialEq, Copy)]
@@ -255,10 +255,13 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
     if let Some(terminal) = terminal.iter().next() {
         if let Some(derive) = derivation.iter_mut().next().as_mut() {
             if state.current() == &AppState::Paused {
+                let msg_pad = std::iter::repeat(" ")
+                    .take(terminal.cols - 1 - derive.grammar.help.chars().count())
+                    .collect::<String>();
                 events.send(TerminalEvent {
                     row: 0,
-                    col: 1,
-                    s: derive.grammar.help.to_string(),
+                    col: 0,
+                    s: format!(" {}{}", derive.grammar.help.to_string(), msg_pad),
                     attr: (Color::WHITE, Color::BLACK)
                 });
             }
