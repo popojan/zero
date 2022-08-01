@@ -4,7 +4,7 @@ pub mod derivation;
 mod input;
 
 use std::collections::HashMap;
-use bevy::core::FixedTimestep;
+use bevy::time::FixedTimestep;
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use terminal::TerminalPlugin;
@@ -14,7 +14,7 @@ use crate::grammar::Grammar2D;
 use crate::input::KeyCodeExt;
 use crate::terminal::{Terminal, TerminalNew, TerminalReady};
 use std::env;
-use bevy_kira_audio::{Audio, AudioChannel, AudioPlugin, AudioSource};
+use bevy::audio::{Audio, AudioPlugin, AudioSource};
 use bevy::asset::LoadState;
 use bevy::window::WindowMode;
 
@@ -37,20 +37,6 @@ pub struct AudioState {
     pub audio_loaded: bool,
     pub audio_destroy: bool,
     sound_handles: HashMap<char, Handle<AudioSource>>,
-    channels: HashMap<AudioChannel, ChannelAudioState>,
-}
-struct ChannelAudioState {
-    stopped: bool,
-    paused: bool,
-}
-
-impl Default for ChannelAudioState {
-    fn default() -> Self {
-        ChannelAudioState {
-            stopped: true,
-            paused: false,
-        }
-    }
 }
 
 struct KeyRepeatTiming(HashMap<KeyCode, f64>);
@@ -75,7 +61,7 @@ fn main() {
         .insert_resource(WindowDescriptor {
             width: 640.0,
             height: 480.0,
-            position: None,
+            position: WindowPosition::Centered(MonitorSelection::Current),
             mode: WindowMode::BorderlessFullscreen,
             ..Default::default()
         })
@@ -108,7 +94,7 @@ fn main() {
             .with_run_criteria(FixedTimestep::step(0.1*slow_step))
             .with_system(grammar_derivation_system_m)
         )
-        .add_system(bevy::input::system::exit_on_esc_system)
+        .add_system(bevy::window::close_on_esc)
         .run();
 }
 
@@ -132,22 +118,12 @@ fn prepare_audio(mut commands: Commands, program_file: Res<ProgramFile>, asset_s
     let mut grammar = Grammar2D::default();
     grammar.load(&program_file.0);
 
-    let mut channels = HashMap::new();
-    channels.insert(
-        AudioChannel::new("first".to_owned()),
-        ChannelAudioState::default(),
-    );
-    channels.insert(
-        AudioChannel::new("second".to_owned()),
-        ChannelAudioState::default(),
-    );
     let mut sound_handles =  HashMap::<char, Handle<AudioSource>>::new();
     for (sound_alias, sound_file) in grammar.sounds.iter() {
         let sound_handle = asset_server.load(sound_file);
         sound_handles.insert(*sound_alias, sound_handle);
     }
     let audio_state = AudioState {
-        channels,
         audio_loaded: false,
         audio_destroy: false,
         sound_handles,
@@ -239,7 +215,7 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
                              time: Res<Time>,
                              audio: Res<Audio>,
                              mut accumulator: ResMut<RewardAccumulator>,
-                             mut audio_state: ResMut<AudioState>,
+                             audio_state: ResMut<AudioState>,
                              mut state: ResMut<State<AppState>>,
                              mut key_repeat_times: ResMut<KeyRepeatTiming>,
                              mut keyboard_input: ResMut<Input<KeyCode>>,
@@ -324,11 +300,7 @@ fn grammar_derivation_system(time_step_code: KeyCode, terminal: Query<&Terminal>
                         if let Some(sound_handle_ref) = audio_state.sound_handles.get(&result.sound_alias) {
                             if audio_state.audio_loaded {
                                 let sound_handle = sound_handle_ref.clone();
-                                let audio_channel = &audio_state.channels.iter().next().unwrap().0.clone();
-                                let channel_audio_state = audio_state.channels.get_mut(audio_channel).unwrap();
-                                channel_audio_state.paused = false;
-                                channel_audio_state.stopped = false;
-                                audio.play_in_channel(sound_handle, &audio_channel);
+                                audio.play(sound_handle);
                             }
                         }
                     }

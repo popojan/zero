@@ -24,7 +24,7 @@ pub enum TerminalState {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn_bundle(Camera2dBundle::default());
 }
 
 pub struct TerminalEvent {
@@ -206,7 +206,7 @@ impl Terminal {
         });
         TextBundle {
             style: Style {
-                position: Rect {
+                position: UiRect {
                     left: Val::Px(off_x),
                     bottom: Val::Px(off_y),
                     ..Default::default()
