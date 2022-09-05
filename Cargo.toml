@@ -1,15 +1,17 @@
 [package]
 name = "nerez"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 [dependencies.bevy]
-version = "0.8"
+version = "0.8.1"
 default-features = false
 features = [
-    "subpixel_glyph_atlas", "bevy_render", "bevy_ui",
+    "wayland",
+    "subpixel_glyph_atlas",
     "bevy_core_pipeline", "bevy_asset",
-    "wayland", "bevy_text", "bevy_sprite", "wav"
+    "bevy_text", "bevy_sprite", "wav",
+    "bevy_render", "bevy_ui",
 ]
 
 [dependencies]
@@ -19,4 +21,4 @@ rand = "0.8.5"
 opt-level = 0
 
 [profile.release]
-opt-level = 3
+opt-level = 's'

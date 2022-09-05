@@ -42,6 +42,10 @@ impl TerminalEvent {
     pub fn mvaddch(row: usize, col: usize, c: char) -> Self {
         Self { row, col, s: c.to_string(), attr: (Color::WHITE, Color::BLACK) }
     }
+
+    pub fn clear() -> Self {
+        Self { row: usize::MAX, col: usize::MAX, s: String::from(" "), attr: (Color::WHITE, Color::BLACK) }
+    }
 }
 
 pub struct TerminalReady;
@@ -120,7 +124,7 @@ fn scale_terminal_system(
             commands.spawn_bundle(back).insert(Background);
             commands.spawn_bundle(fore).insert(Foreground);
             commands.spawn().insert(resized_terminal);
-            state.set(new_state).unwrap();
+            state.set(new_state).unwrap_or(());
         }
     } else if state.current() == &TerminalState::Ready{
         is_ready.send(TerminalReady);
@@ -151,13 +155,22 @@ impl Plugin for TerminalPlugin {
 }
 
 fn terminal_update_system(mut q0: Query<&mut Terminal>, mut q1: Query<&mut Text, (With<Foreground>, Without<Background>)>,
-        mut q2: Query<&mut Text, (With<Background>, Without<Foreground>)>, mut events: EventReader<TerminalEvent>) {
+        mut q2: Query<&mut Text, (With<Background>, Without<Foreground>)>, mut events: EventReader<TerminalEvent>,
+    mut state: ResMut<State<TerminalState>>
+) {
     for e in events.iter() {
-        let mut terminal = q0.single_mut();
-        let mut fore = q1.single_mut();
-        let mut back = q2.single_mut();
-        terminal.attron(e.attr);
-        terminal.mvprintw(fore.as_mut(), back.as_mut(), e.row, e.col, &e.s);
+        if e.row == usize::MAX && e.col == usize::MAX {
+            if state.current() == &TerminalState::Ready {
+                state.set(TerminalState::New).unwrap();
+                break;
+            }
+        } else {
+            let mut terminal = q0.single_mut();
+            let mut fore = q1.single_mut();
+            let mut back = q2.single_mut();
+            terminal.attron(e.attr);
+            terminal.mvprintw(fore.as_mut(), back.as_mut(), e.row, e.col, &e.s);
+        }
     }
 }
 impl Terminal {
