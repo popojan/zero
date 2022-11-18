@@ -25,4 +25,4 @@ True type font `iosevka-term-regular.ttf` to be downloaded manually into `assets
 * Sokoban draft (original picocosmos levels by Aymeric du Peloux downloaded and recreated by attached Makefile)
 * Tetris working example
 * Zen Puzzle Garden inspired prototype
-* Maze
+* Maze for Two

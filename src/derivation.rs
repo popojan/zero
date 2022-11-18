@@ -78,12 +78,18 @@ impl Derivation {
                     'l' => 0,
                     'r' => (self.cols - 1) as usize,
                     'c' => (self.cols / 2) as usize,
+                    'R' => 2*((self.cols - 1)/2) as usize,
+                    'C' => 2*((self.cols / 2)/2) as usize,
+                    'X' => 2*((rand::random::<usize>() % (self.cols as usize))/2),
                     _ => rand::random::<usize>() % (self.cols as usize),
                 };
                 let row = match seed.ul {
                     'u' => 1,
                     'l' => (self.rows - 1) as usize,
                     'c' => (self.rows / 2) as usize,
+                    'L' => 2*((self.rows - 2)/2) as usize,
+                    'C' => 2*((self.rows / 2 - 1)/2) as usize,
+                    'X' => 2*((rand::random::<usize>() % ((self.rows - 1) as usize))/2),
                     _ => rand::random::<usize>() % ((self.rows - 1) as usize)  + 1,
                 };
                 self.x.insert((row, col), seed.c);
