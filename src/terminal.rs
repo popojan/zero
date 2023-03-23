@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::WindowResized;
+use bevy::window::PrimaryWindow;
 use crate::{MIN_CHAR_HEIGHT, MIN_CHAR_WIDTH};
 
 #[derive(Component)]
@@ -16,15 +17,16 @@ pub struct Terminal {
 //const FONT_PATH: &str = "fonts/FreeMonoBold.otf";
 const FONT_PATH: &str = "fonts/iosevka-term-regular.ttf";
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum TerminalState {
+    #[default]
     New,
     Resized,
     Ready,
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 }
 
 pub struct TerminalEvent {
@@ -61,12 +63,10 @@ struct Background;
 
 fn window_resized_system(
     mut event_resized: EventReader<WindowResized>,
-    mut state: ResMut<State<TerminalState>>,
+    mut state: ResMut<NextState<TerminalState>>,
 ) {
     for _event in event_resized.iter() {
-        if state.current() == &TerminalState::Ready {
-            state.set(TerminalState::New).unwrap();
-        }
+        state.set(TerminalState::New);
         break;
     }
 }
@@ -77,13 +77,14 @@ fn scale_terminal_system(
     asset_server: Res<AssetServer>,
     mut terminal: Query<(Entity, &Terminal)>,
     text: Query<&CalculatedSize, With<Foreground>>,
-    mut state: ResMut<State<TerminalState>>,
-    windows: Res<Windows>,
+    mut next_state: ResMut<NextState<TerminalState>>,
+    state: Res<State<TerminalState>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut is_new: EventWriter<TerminalNew>,
     mut is_ready: EventWriter<TerminalReady>,
 ) {
-    let mut new_state = state.current().clone();
-    let font_scale: (f32, f32) = match state.current() {
+    let mut new_state = state.0.clone();
+    let font_scale: (f32, f32) = match state.0 {
         TerminalState::New => {
             new_state = TerminalState::Resized;
             (1.0, 1.0)
@@ -92,11 +93,11 @@ fn scale_terminal_system(
             is_new.send(TerminalNew);
             let size = text.single();
             let terminal = terminal.single_mut().1;
-            if size.size.width > 0.0 && size.size.height > 0.0 {
+            if size.size.x > 0.0 && size.size.y > 0.0 {
                 new_state = TerminalState::Ready;
                 (
-                    size.size.width / terminal.cols as f32 / terminal.font_size,
-                    size.size.height / terminal.rows as f32 / terminal.font_size,
+                    size.size.x / terminal.cols as f32 / terminal.font_size,
+                    size.size.y / terminal.rows as f32 / terminal.font_size,
                 )
             } else {
                 (1.0, 1.0)
@@ -105,9 +106,9 @@ fn scale_terminal_system(
         TerminalState::Ready => terminal.single_mut().1.font_scale
     };
 
-    if state.current() != &new_state {
+    if state.0 != new_state {
         query.iter().for_each(|id| commands.entity(id).despawn());
-        let window = windows.get_primary().unwrap();
+        let window = windows.get_single().unwrap();
         let width = window.width();
         let height = window.height();
 
@@ -121,12 +122,12 @@ fn scale_terminal_system(
         {
             let back = resized_terminal.create_layer(width, height, &asset_server);
             let fore = resized_terminal.create_layer(width, height, &asset_server);
-            commands.spawn_bundle(back).insert(Background);
-            commands.spawn_bundle(fore).insert(Foreground);
-            commands.spawn().insert(resized_terminal);
-            state.set(new_state).unwrap_or(());
+            commands.spawn(back).insert(Background);
+            commands.spawn(fore).insert(Foreground);
+            commands.spawn(resized_terminal);
+            next_state.set(new_state);
         }
-    } else if state.current() == &TerminalState::Ready{
+    } else if state.0 == TerminalState::Ready{
         is_ready.send(TerminalReady);
     }
 }
@@ -143,25 +144,25 @@ impl Plugin for TerminalPlugin {
         app
             .insert_resource(ClearColor(Color::BLACK))
             .add_startup_system(setup)
-            .add_state(TerminalState::New)
+            .add_state::<TerminalState>()
             .add_event::<TerminalEvent>()
             .add_event::<TerminalReady>()
             .add_event::<TerminalNew>()
             .add_system(window_resized_system)
             .add_system(scale_terminal_system)
-            .add_system_set(SystemSet::on_update(TerminalState::Ready)
-                .with_system(terminal_update_system));
+            .add_system(terminal_update_system.in_set(OnUpdate(TerminalState::Ready)));
     }
 }
 
 fn terminal_update_system(mut q0: Query<&mut Terminal>, mut q1: Query<&mut Text, (With<Foreground>, Without<Background>)>,
         mut q2: Query<&mut Text, (With<Background>, Without<Foreground>)>, mut events: EventReader<TerminalEvent>,
-    mut state: ResMut<State<TerminalState>>
+    state: Res<State<TerminalState>>,
+    mut next_state: ResMut<NextState<TerminalState>>
 ) {
     for e in events.iter() {
         if e.row == usize::MAX && e.col == usize::MAX {
-            if state.current() == &TerminalState::Ready {
-                state.set(TerminalState::New).unwrap();
+            if state.0 == TerminalState::Ready {
+                next_state.set(TerminalState::New);
                 break;
             }
         } else {
