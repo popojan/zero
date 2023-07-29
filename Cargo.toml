@@ -1,13 +1,13 @@
 [package]
 name = "zero"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 
 [dependencies.bevy]
-version = "0.10.0"
+version = "0.11.0"
 default-features = false
 features = [
-    "wayland",
+    "x11",
     "subpixel_glyph_atlas",
     "bevy_core_pipeline", "bevy_asset",
     "bevy_text", "bevy_sprite", "wav",

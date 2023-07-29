@@ -29,6 +29,7 @@ fn setup(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
+#[derive(Event)]
 pub struct TerminalEvent {
     pub row: usize,
     pub col: usize,
@@ -50,7 +51,10 @@ impl TerminalEvent {
     }
 }
 
+#[derive(Event)]
 pub struct TerminalReady;
+
+#[derive(Event)]
 pub struct TerminalNew;
 
 pub struct TerminalOperation(pub Vec<TerminalEvent>);
@@ -76,28 +80,40 @@ fn scale_terminal_system(
     query: Query<Entity, Or<(With<Foreground>, With<Background>)>>,
     asset_server: Res<AssetServer>,
     mut terminal: Query<(Entity, &Terminal)>,
-    text: Query<&CalculatedSize, With<Foreground>>,
     mut next_state: ResMut<NextState<TerminalState>>,
     state: Res<State<TerminalState>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     mut is_new: EventWriter<TerminalNew>,
     mut is_ready: EventWriter<TerminalReady>,
+    mut resize_events: EventReader<WindowResized>,
+    text: Query<(&Text, &Node), With<Foreground>>
 ) {
-    let mut new_state = state.0.clone();
-    let font_scale: (f32, f32) = match state.0 {
+    let mut new_state = state.clone();
+    let window = windows.get_single().unwrap();
+    let mut width = window.width();
+    let mut height = window.height();
+
+    for e in resize_events.iter() {
+        height = e.height;
+        width = e.width;
+    }
+    let font_scale: (f32, f32) = match state.get() {
         TerminalState::New => {
             new_state = TerminalState::Resized;
             (1.0, 1.0)
         }
         TerminalState::Resized => {
             is_new.send(TerminalNew);
-            let size = text.single();
             let terminal = terminal.single_mut().1;
-            if size.size.x > 0.0 && size.size.y > 0.0 {
+            let (_text, node) = text.single();
+            let size = node.size();
+            let width = size.x;
+            let height = size.y;
+            if width > 0.0 && height > 0.0 {
                 new_state = TerminalState::Ready;
                 (
-                    size.size.x / terminal.cols as f32 / terminal.font_size,
-                    size.size.y / terminal.rows as f32 / terminal.font_size,
+                    width / terminal.cols as f32 / terminal.font_size,
+                    height / terminal.rows as f32 / terminal.font_size,
                 )
             } else {
                 (1.0, 1.0)
@@ -105,13 +121,8 @@ fn scale_terminal_system(
         }
         TerminalState::Ready => terminal.single_mut().1.font_scale
     };
-
-    if state.0 != new_state {
-        query.iter().for_each(|id| commands.entity(id).despawn());
-        let window = windows.get_single().unwrap();
-        let width = window.width();
-        let height = window.height();
-
+    if state.get() != & new_state {
+        query.iter().for_each( | id| commands.entity(id).despawn());
         let resized_terminal = Terminal::new(
             MIN_CHAR_WIDTH, MIN_CHAR_HEIGHT,
             width, height, FONT_PATH.to_string(), font_scale
@@ -119,6 +130,7 @@ fn scale_terminal_system(
         if let Some(old_terminal) = terminal.iter_mut().next() {
             commands.entity(old_terminal.0).despawn();
         }
+
         {
             let back = resized_terminal.create_layer(width, height, &asset_server);
             let fore = resized_terminal.create_layer(width, height, &asset_server);
@@ -127,7 +139,7 @@ fn scale_terminal_system(
             commands.spawn(resized_terminal);
             next_state.set(new_state);
         }
-    } else if state.0 == TerminalState::Ready{
+    } else if state.get() == & TerminalState::Ready{
         is_ready.send(TerminalReady);
     }
 }
@@ -143,14 +155,14 @@ impl Plugin for TerminalPlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(ClearColor(Color::BLACK))
-            .add_startup_system(setup)
+            .add_systems(Startup, setup)
             .add_state::<TerminalState>()
             .add_event::<TerminalEvent>()
             .add_event::<TerminalReady>()
             .add_event::<TerminalNew>()
-            .add_system(window_resized_system)
-            .add_system(scale_terminal_system)
-            .add_system(terminal_update_system.in_set(OnUpdate(TerminalState::Ready)));
+            .add_systems(Update, window_resized_system)
+            .add_systems(Update, scale_terminal_system)
+            .add_systems(Update, (terminal_update_system).run_if(in_state(TerminalState::Ready)));
     }
 }
 
@@ -161,7 +173,7 @@ fn terminal_update_system(mut q0: Query<&mut Terminal>, mut q1: Query<&mut Text,
 ) {
     for e in events.iter() {
         if e.row == usize::MAX && e.col == usize::MAX {
-            if state.0 == TerminalState::Ready {
+            if state.get() == &TerminalState::Ready {
                 next_state.set(TerminalState::New);
                 break;
             }
@@ -191,7 +203,6 @@ impl Terminal {
         let font_size = if _x >= _y { _x / font_scale.0 } else { _y / font_scale.1 };
         let rows = std::cmp::max(1, (height / font_size / font_scale.1).floor() as usize);
         let cols = std::cmp::max(1, (width / font_size / font_scale.0).floor() as usize);
-
         Self {rows, cols, font_size, font_scale, font_path, color_pair: (Color::WHITE, Color::BLACK)}
     }
 
@@ -206,7 +217,7 @@ impl Terminal {
                     style: TextStyle {
                         font: asset_server.load(&self.font_path),
                         font_size: self.font_size,
-                        color: Color::BLACK,
+                        color: Color::RED,
                     },
                 }; self.cols + 1]; self.rows];
 
@@ -220,19 +231,15 @@ impl Terminal {
         });
         TextBundle {
             style: Style {
-                position: UiRect {
-                    left: Val::Px(off_x),
-                    bottom: Val::Px(off_y),
-                    ..Default::default()
-                },
                 position_type: PositionType::Absolute,
                 align_self: AlignSelf::FlexStart,
+                left: Val::Px(off_x),
+                bottom: Val::Px(off_y),
                 ..Default::default()
             },
-            text: Text {
-                sections: layer.into_iter().flatten().collect(),
-                ..Default::default()
-            },
+            text: Text::from_sections(
+                layer.into_iter().flatten().collect::<Vec<_>>()
+            ),
             ..Default::default()
         }
     }

@@ -260,7 +260,7 @@ impl Derivation {
                     .filter(|&rule| {
                         (rule.key == key) || (rule.key == MAGIC)
                     })
-                    .map(|rule| rule.lhs)
+                    .map(|rule| rule.lhs.to_string())
             }).flatten()
         );
 
@@ -268,7 +268,7 @@ impl Derivation {
         let xx = Vec::from_iter(
             self.x.iter()
                 .filter(|(_position, nonterminal)| {
-                    a.contains(nonterminal)
+                    a.contains(&nonterminal.to_string())
                 })
                 .map(|(position, _nonterminal)| {
                     position.clone()

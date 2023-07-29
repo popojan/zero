@@ -4,7 +4,7 @@ pub mod derivation;
 mod input;
 
 use std::collections::HashMap;
-use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use terminal::TerminalPlugin;
 use terminal::TerminalEvent;
@@ -13,7 +13,7 @@ use crate::grammar::Grammar2D;
 use crate::input::KeyCodeExt;
 use crate::terminal::{Terminal, TerminalNew, TerminalReady};
 use std::env;
-use bevy::audio::{Audio, AudioSource};
+use bevy::audio::AudioSource;
 use std::path::PathBuf;
 use std::time::Duration;
 use bevy::app::AppExit;
@@ -68,7 +68,6 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                resolution: (640., 480.).into(),
                 mode: WindowMode::BorderlessFullscreen,
                 //present_mode: PresentMode::AutoVsync,
                 fit_canvas_to_parent: true,
@@ -77,8 +76,8 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugin(TerminalPlugin::new())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugins(TerminalPlugin::new())
+        .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(ProgramFile(program_file.clone()))
         .insert_resource(KeyRepeatTiming(Default::default()))
         .insert_resource(RewardAccumulator{
@@ -87,17 +86,17 @@ fn main() {
             errors: 0
         })
         .insert_resource(FixedTime::new_from_secs(fast_step as f32))
-        .add_startup_system(prepare_audio)
+        .add_systems(Startup, prepare_audio)
         .add_state::<AppState>()
         //.add_system(display_fps_system)
-        .add_system(bevy::window::close_on_esc)
+        .add_systems(Update, bevy::window::close_on_esc)
         //.add_system(bevy::window::exit_on_all_closed)
-        .add_system(clear_grammar_system)
-        .add_system(start_grammar_system)
-        .add_system(check_audio_loading)
-        .add_system(grammar_derivation_system_t.in_schedule(CoreSchedule::FixedUpdate))
-        .add_system(grammar_derivation_system_b.run_if(on_timer(Duration::from_secs_f64(slow_step))))
-        .add_system(grammar_derivation_system_m.run_if(on_timer(Duration::from_secs_f64(0.1*slow_step))))
+        .add_systems(Update, clear_grammar_system)
+        .add_systems(Update, start_grammar_system)
+        .add_systems(Update, check_audio_loading)
+        .add_systems(FixedUpdate, grammar_derivation_system_t)
+        .add_systems(Update, grammar_derivation_system_b.run_if(on_timer(Duration::from_secs_f64(slow_step))))
+        .add_systems(Update, grammar_derivation_system_m.run_if(on_timer(Duration::from_secs_f64(0.1*slow_step))))
         .run();
 }
 
@@ -162,7 +161,7 @@ fn start_grammar_system(mut commands: Commands,
     if derivation.iter().count() <= 0  {
         if let Some(_ready) = is_ready.iter().next() {
             if let Some(terminal) = terminals.iter().next() {
-                if state.0 != AppState::Paused {
+                if state.get() != &AppState::Paused {
                     next_state.set(AppState::Paused);
                 }
                 let mut grammar = Grammar2D::default();
@@ -181,7 +180,7 @@ fn start_grammar_system(mut commands: Commands,
     }
 }
 
-fn _display_fps_system(diagnostics: Res<Diagnostics>, mut events: EventWriter<TerminalEvent>) {
+fn _display_fps_system(diagnostics: Res<DiagnosticsStore>, mut events: EventWriter<TerminalEvent>) {
     if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
         if let Some(average) = fps.average() {
             events.send(TerminalEvent {
@@ -196,17 +195,18 @@ fn grammar_derivation_system(time_step_code: KeyCode,
                              program_file: Res<ProgramFile>,
                              terminal: Query<&Terminal>,
                              time: Res<Time>,
-                             audio: Res<Audio>,
+                             //audio: Res<AudioSink>,
                              mut accumulator: ResMut<RewardAccumulator>,
                              audio_state: Res<AudioState>,
                              state: Res<State<AppState>>,
                              mut next_state: ResMut<NextState<AppState>>,
                              mut key_repeat_times: ResMut<KeyRepeatTiming>,
                              mut keyboard_input: ResMut<Input<KeyCode>>,
-                             mut derivation: Query<&mut Derivation>, mut events: EventWriter<TerminalEvent>,
+                             mut derivation: Query<&mut Derivation>,
+                             mut events: EventWriter<TerminalEvent>,
                              mut exit: EventWriter<AppExit>
 ) {
-    let new_state = if state.0 == AppState::Paused {AppState::Running} else {AppState::Paused};
+    let new_state = if state.get() == &AppState::Paused {AppState::Running} else {AppState::Paused};
 
     let current_time = time.elapsed_seconds_f64();
     keyboard_input
@@ -216,7 +216,7 @@ fn grammar_derivation_system(time_step_code: KeyCode,
 
     if let Some(terminal) = terminal.iter().next() {
         if let Some(derive) = derivation.iter_mut().next().as_mut() {
-            if state.0 == AppState::Paused {
+            if state.get() == &AppState::Paused {
                 let msg_pad =
                     if terminal.cols > derive.grammar.help.chars().count() {
                         std::iter::repeat(" ")
@@ -236,7 +236,7 @@ fn grammar_derivation_system(time_step_code: KeyCode,
             let mut _dbg_rule = String::from("");
             let mut cleared = Vec::<KeyCode>::default();
             let time_step = vec![time_step_code];
-            let time_lapse = if state.0 == AppState::Running { time_step } else { vec![] };
+            let time_lapse = if state.get() == &AppState::Running { time_step } else { vec![] };
 
             let iter = keyboard_input
                 .get_just_pressed().filter(|&x| {
@@ -252,11 +252,11 @@ fn grammar_derivation_system(time_step_code: KeyCode,
                 let shift_down = (key_code == &KeyCode::T)
                     || (key_code == &KeyCode::M)
                     || (key_code == &KeyCode::B)
-                    || keyboard_input.pressed(KeyCode::LShift)
-                    || keyboard_input.pressed(KeyCode::RShift);
+                    || keyboard_input.pressed(KeyCode::ShiftLeft)
+                    || keyboard_input.pressed(KeyCode::ShiftRight);
                 if let Some(c) = KeyCodeExt(key_code.clone()).to_qwerty_char(shift_down) {
                     if c == ' ' {
-                        if state.0 != new_state {
+                        if state.get() != &new_state {
                             next_state.set(new_state);
                         }
                         break;
@@ -306,9 +306,10 @@ fn grammar_derivation_system(time_step_code: KeyCode,
                             });
                         }
                         if let Some(sound_handle_ref) = audio_state.sound_handles.get(&result.sound_alias) {
-                            if audio_state.audio_loaded {
-                                audio.play(sound_handle_ref.clone());
-                            }
+                            commands.spawn(AudioBundle {
+                                source: sound_handle_ref.clone(),
+                                settings: Default::default(),
+                            });
                         }
                     }
                 }
@@ -329,17 +330,18 @@ fn grammar_derivation_system_t(commands: Commands,
                                terminal: Query<&Terminal>,
                                program_file: Res<ProgramFile>,
                                time: Res<Time>,
-                               audio: Res<Audio>,
+                               //audio: Res<Audio>,
                                accumulator: ResMut<RewardAccumulator>,
                                audio_state: Res<AudioState>,
                                state: Res<State<AppState>>,
                                next_state: ResMut<NextState<AppState>>,
                                key_repeat_times: ResMut<KeyRepeatTiming>,
                                keyboard_input: ResMut<Input<KeyCode>>,
-                               derivation: Query<&mut Derivation>, events: EventWriter<TerminalEvent>,
+                               derivation: Query<&mut Derivation>,
+                               events: EventWriter<TerminalEvent>,
                                exit: EventWriter<AppExit>) {
         grammar_derivation_system(KeyCode::T, commands, program_file, terminal, time,
-                                  audio, accumulator, audio_state, state, next_state, key_repeat_times,
+                                  accumulator, audio_state, state, next_state, key_repeat_times,
                                   keyboard_input, derivation, events, exit);
 }
 
@@ -347,7 +349,7 @@ fn grammar_derivation_system_b(commands: Commands,
                                terminal: Query<&Terminal>,
                                program_file: Res<ProgramFile>,
                                time: Res<Time>,
-                               audio: Res<Audio>,
+                               //audio: Res<Audio>,
                                accumulator: ResMut<RewardAccumulator>,
                                audio_state: Res<AudioState>,
                                state: Res<State<AppState>>,
@@ -358,7 +360,7 @@ fn grammar_derivation_system_b(commands: Commands,
                                exit: EventWriter<AppExit>
 ) {
     grammar_derivation_system(KeyCode::B, commands, program_file, terminal, time,
-                              audio, accumulator, audio_state, state, next_state,key_repeat_times,
+                              accumulator, audio_state, state, next_state,key_repeat_times,
                               keyboard_input, derivation, events, exit);
 }
 
@@ -366,7 +368,7 @@ fn grammar_derivation_system_m(commands: Commands,
                                terminal: Query<&Terminal>,
                                program_file: Res<ProgramFile>,
                                time: Res<Time>,
-                               audio: Res<Audio>,
+                               //audio: Res<Audio>,
                                accumulator: ResMut<RewardAccumulator>,
                                audio_state: Res<AudioState>,
                                state: Res<State<AppState>>,
@@ -378,6 +380,6 @@ fn grammar_derivation_system_m(commands: Commands,
 ) {
 
     grammar_derivation_system(KeyCode::M, commands, program_file, terminal, time,
-                              audio, accumulator, audio_state, state, next_state, key_repeat_times,
+                              accumulator, audio_state, state, next_state, key_repeat_times,
                               keyboard_input, derivation, events, exit);
 }
