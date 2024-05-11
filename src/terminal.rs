@@ -69,7 +69,7 @@ fn window_resized_system(
     mut event_resized: EventReader<WindowResized>,
     mut state: ResMut<NextState<TerminalState>>,
 ) {
-    for _event in event_resized.iter() {
+    for _event in event_resized.read() {
         state.set(TerminalState::New);
         break;
     }
@@ -93,7 +93,7 @@ fn scale_terminal_system(
     let mut width = window.width();
     let mut height = window.height();
 
-    for e in resize_events.iter() {
+    for e in resize_events.read() {
         height = e.height;
         width = e.width;
     }
@@ -156,7 +156,7 @@ impl Plugin for TerminalPlugin {
         app
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, setup)
-            .add_state::<TerminalState>()
+            .init_state::<TerminalState>()
             .add_event::<TerminalEvent>()
             .add_event::<TerminalReady>()
             .add_event::<TerminalNew>()
@@ -171,7 +171,7 @@ fn terminal_update_system(mut q0: Query<&mut Terminal>, mut q1: Query<&mut Text,
     state: Res<State<TerminalState>>,
     mut next_state: ResMut<NextState<TerminalState>>
 ) {
-    for e in events.iter() {
+    for e in events.read() {
         if e.row == usize::MAX && e.col == usize::MAX {
             if state.get() == &TerminalState::Ready {
                 next_state.set(TerminalState::New);

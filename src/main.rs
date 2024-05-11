@@ -70,7 +70,6 @@ fn main() {
             primary_window: Some(Window {
                 mode: WindowMode::BorderlessFullscreen,
                 //present_mode: PresentMode::AutoVsync,
-                fit_canvas_to_parent: true,
                 prevent_default_event_handling: false,
                 ..default()
             }),
@@ -85,9 +84,9 @@ fn main() {
             time: 0,
             errors: 0
         })
-        .insert_resource(FixedTime::new_from_secs(fast_step as f32))
+        .insert_resource(Time::<Fixed>::from_seconds(fast_step))
         .add_systems(Startup, prepare_audio)
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         //.add_system(display_fps_system)
         .add_systems(Update, bevy::window::close_on_esc)
         //.add_system(bevy::window::exit_on_all_closed)
@@ -111,7 +110,9 @@ fn check_audio_loading(mut audio_state: ResMut<AudioState>, asset_server: ResMut
     }
     let mut loading = false;
     for (_sound_alias, sound_handle) in audio_state.sound_handles.iter() {
-        loading |= LoadState::Loaded != asset_server.get_load_state(sound_handle);
+        if let Some(state) = asset_server.get_load_state(sound_handle) {
+            loading |= LoadState::Loaded != state
+        }
     }
     if loading {
         return;
@@ -145,7 +146,7 @@ fn clear_grammar_system(mut commands: Commands,
     mut is_new: EventReader<TerminalNew>,
     derivation: Query<Entity, With<Derivation>>,
 ) {
-    for _event in is_new.iter() {
+    for _event in is_new.read() {
         for id in derivation.iter() {
             commands.entity(id).despawn();
         }
@@ -163,7 +164,7 @@ fn start_grammar_system(mut commands: Commands,
     asset_server: ResMut<AssetServer>,
 ) {
     if derivation.iter().count() <= 0  {
-        if let Some(_ready) = is_ready.iter().next() {
+        if let Some(_ready) = is_ready.read().next() {
             if let Some(terminal) = terminals.iter().next() {
                 if state.get() != &AppState::Paused {
                     next_state.set(AppState::Paused);
@@ -185,7 +186,7 @@ fn start_grammar_system(mut commands: Commands,
 }
 
 fn _display_fps_system(diagnostics: Res<DiagnosticsStore>, mut events: EventWriter<TerminalEvent>) {
-    if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
         if let Some(average) = fps.average() {
             events.send(TerminalEvent {
                 row: 0, col: 1, s: format!("{:.0} fps", average), attr: (Color::WHITE, Color::BLACK)
@@ -204,7 +205,7 @@ fn grammar_derivation_system(time_step_code: In<KeyCode>,
                              state: Res<State<AppState>>,
                              mut next_state: ResMut<NextState<AppState>>,
                              mut key_repeat_times: ResMut<KeyRepeatTiming>,
-                             mut keyboard_input: ResMut<Input<KeyCode>>,
+                             mut keyboard_input: ResMut<ButtonInput<KeyCode>>,
                              mut derivation: Query<&mut Derivation>,
                              mut events: EventWriter<TerminalEvent>,
                              mut exit: EventWriter<AppExit>
@@ -243,18 +244,18 @@ fn grammar_derivation_system(time_step_code: In<KeyCode>,
 
             let iter = keyboard_input
                 .get_just_pressed().filter(|&x| {
-                (x == &KeyCode::Space) || (time_step_code.0 == KeyCode::T)
+                (x == &KeyCode::Space) || (time_step_code.0 == KeyCode::KeyT)
             })
                 .chain(keyboard_input.get_pressed().filter(|&x| {
-                    time_step_code.0 == KeyCode::M && x != &KeyCode::Space
+                    time_step_code.0 == KeyCode::KeyM && x != &KeyCode::Space
                         && ((current_time - key_repeat_times.0.get(x)
                         .unwrap_or(&current_time)) > 0.25)
                 }))
                 .chain(time_lapse.iter());
             for key_code in iter {
-                let shift_down = (key_code == &KeyCode::T)
-                    || (key_code == &KeyCode::M)
-                    || (key_code == &KeyCode::B)
+                let shift_down = (key_code == &KeyCode::KeyT)
+                    || (key_code == &KeyCode::KeyM)
+                    || (key_code == &KeyCode::KeyB)
                     || keyboard_input.pressed(KeyCode::ShiftLeft)
                     || keyboard_input.pressed(KeyCode::ShiftRight);
                 if let Some(c) = KeyCodeExt(key_code.clone()).to_qwerty_char(shift_down) {
@@ -315,7 +316,7 @@ fn grammar_derivation_system(time_step_code: In<KeyCode>,
                         }
                     }
                 }
-                if time_step_code.0 == KeyCode::T {
+                if time_step_code.0 == KeyCode::KeyT {
                     cleared.push(key_code.clone());
                 }
             }
@@ -329,13 +330,13 @@ fn grammar_derivation_system(time_step_code: In<KeyCode>,
 }
 
 fn grammar_derivation_system_t() -> KeyCode {
-    KeyCode::T
+    KeyCode::KeyT
 }
 
 fn grammar_derivation_system_b() -> KeyCode {
-    KeyCode::B
+    KeyCode::KeyB
 }
 
 fn grammar_derivation_system_m() -> KeyCode {
-    KeyCode::M
+    KeyCode::KeyM
 }
