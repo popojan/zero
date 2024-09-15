@@ -13,6 +13,7 @@ use crate::grammar::Grammar2D;
 use crate::input::KeyCodeExt;
 use crate::terminal::{Terminal, TerminalNew, TerminalReady};
 use std::env;
+use std::num::NonZeroU8;
 use bevy::audio::AudioSource;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -88,7 +89,6 @@ fn main() {
         .add_systems(Startup, prepare_audio)
         .init_state::<AppState>()
         //.add_system(display_fps_system)
-        .add_systems(Update, bevy::window::close_on_esc)
         //.add_system(bevy::window::exit_on_all_closed)
         .add_systems(Update, clear_grammar_system)
         .add_systems(Update, start_grammar_system)
@@ -279,7 +279,8 @@ fn grammar_derivation_system(time_step_code: In<KeyCode>,
                             let new_file = result.dbg_rule.split(" ").last().unwrap();
                             new_program.push(new_file);
                             if !new_program.exists() {
-                                exit.send(AppExit);
+                                eprintln!("Cannot open program {}", new_file);
+                                exit.send(AppExit::Error(NonZeroU8::new(2_u8).unwrap()));
                             } else {
                                 let new_program = new_program.to_str().unwrap().to_string();
                                 next_state.set(AppState::Paused);

@@ -1,5 +1,6 @@
 use std::default::Default;
 use std::collections::HashMap;
+use bevy::color::palettes::basic;
 use bevy::prelude::Color;
 use bevy::prelude::Component;
 use bevy::utils::HashSet;
@@ -54,14 +55,14 @@ impl Derivation {
             memory:  vec![vec![G { c: ' ', fore: 7, back: 0, z_ord: 'a' as u8 }; cols]; rows],
             x: Default::default(),
             colours: vec![
-                Color::BLACK,
-                Color::RED,
-                Color::GREEN,
-                Color::YELLOW,
-                Color::BLUE,
-                Color::FUCHSIA,
-                Color::CYAN,
-                Color::WHITE,
+                Color::Srgba(basic::BLACK),
+                Color::Srgba(basic::RED),
+                Color::Srgba(basic::GREEN),
+                Color::Srgba(basic::YELLOW),
+                Color::Srgba(basic::BLUE),
+                Color::Srgba(basic::FUCHSIA),
+                Color::Srgba(basic::AQUA),
+                Color::Srgba(basic::WHITE),
             ]
         }
     }

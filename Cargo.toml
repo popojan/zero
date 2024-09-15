@@ -4,14 +4,14 @@ version = "0.1.6"
 edition = "2021"
 
 [dependencies.bevy]
-version = "0.13.2"
+version = "0.14.2"
 default-features = false
 features = [
     "x11",
     "subpixel_glyph_atlas",
     "bevy_core_pipeline", "bevy_asset",
     "bevy_text", "bevy_sprite", "wav",
-    "bevy_render", "bevy_ui",
+    "bevy_render", "bevy_ui", "bevy_state"
 ]
 
 [dependencies]

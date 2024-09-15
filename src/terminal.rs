@@ -217,7 +217,7 @@ impl Terminal {
                     style: TextStyle {
                         font: asset_server.load(&self.font_path),
                         font_size: self.font_size,
-                        color: Color::RED,
+                        color: Color::Srgba(Srgba::RED),
                     },
                 }; self.cols + 1]; self.rows];
 
